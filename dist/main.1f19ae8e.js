@@ -118,8 +118,6 @@ parcelRequire = (function (modules, cache, entry, globalName) {
 
   return newRequire;
 })({"main.js":[function(require,module,exports) {
-"use strict";
-
 function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) { symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); } keys.push.apply(keys, symbols); } return keys; }
 
 function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { ownKeys(Object(source), true).forEach(function (key) { _defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
@@ -144,6 +142,9 @@ function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _d
 
 function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
 
+var sin = Math.sin,
+    cos = Math.cos,
+    atan2 = Math.atan2;
 var controlKey = {
   up: ["ArrowUp", "KeyW"],
   down: ["ArrowDown", "KeyS"],
@@ -164,7 +165,7 @@ c.lineWidth = 3;
 c.strokeStyle = "#ffffff";
 c.fillStyle = "#ffffff";
 c.font = "22px pressStart";
-var maxR = 400,
+var maxR = 300,
     //Maximun size of asteroid
 minR = 40,
     //Minimun size of asteroid
@@ -202,9 +203,11 @@ org_player_x = c_width / 2,
     player,
     enemy = [],
     score = 0,
-    rounded_score = 0,
     scoremult = 1,
-    popUps = [];
+    popUps = [],
+    enemiesToShowHealth = {
+  0: 0
+};
 var isEndless = 0,
     isHardMode = 0; //#endregion
 //#region Setup Functions
@@ -336,7 +339,7 @@ function checkCollision(x1, y1, x2, y2, x3, y3, x4, y4) {
     };
   }
 
-  return false;
+  return null;
 }
 
 function checkCollision_Bullet_Enemy(_bullet, _enemy) {
@@ -465,6 +468,211 @@ function addPopUp(text, x, y, frame) {
   }
 
   if (nf) popUps.push([text, x, y, frame]);
+}
+
+function handleEnemyDeathAndSplit(_enemy, inter_index) {
+  //#region Enemy die and split
+  if (_enemy.health > 0) return;
+  _enemy.state = 0;
+  addPopUp(~~_enemy.o_health, _enemy.data[0].ox, _enemy.data[0].oy, 20);
+  score += _enemy.o_health * scoremult;
+  var spawned = 0;
+  var t = (inter_index + 1 + ~~(_enemy.data.length / 2)) % _enemy.data.length;
+  var a = inter_index + 1,
+      b = t,
+      e1;
+  var arr = _enemy.data;
+  var oldCenterX = arr[0].ox,
+      oldCenterY = arr[0].oy;
+
+  var copy_of_b = _objectSpread({}, arr[b]);
+
+  if (a < b) {
+    e1 = arr.splice(a, b - a + 1, {
+      ox: arr[0].ox,
+      oy: arr[0].oy,
+      x: arr[0].ox,
+      y: arr[0].oy
+    }, copy_of_b);
+  } else {
+    e1 = arr.splice(b, a - b, copy_of_b, {
+      ox: arr[0].ox,
+      oy: arr[0].oy,
+      x: arr[0].ox,
+      y: arr[0].oy
+    });
+  }
+
+  e1.push({
+    ox: arr[0].ox,
+    oy: arr[0].oy,
+    x: arr[0].ox,
+    y: arr[0].oy
+  }); // console.log(e1.slice());
+
+  if (e1.length > 3 && !checkIfPolygonSelfIntersect(e1)) {
+    var newCenter = getCentroidOfPolygon(e1);
+
+    for (var i = 0; i < e1.length; i++) {
+      e1[i].ox = newCenter.x;
+      e1[i].oy = newCenter.y;
+    }
+
+    var q = 1;
+
+    for (var j = 0; j < _enemy.length; j++) {
+      if (_enemy[j].state) continue;
+      _enemy[j] = new EnemyFromData(e1, {
+        x: _enemy.dir.x + 2 * (e1[0].ox - oldCenterX) / _enemy.o_health,
+        y: _enemy.dir.y + 2 * (e1[0].oy - oldCenterY) / _enemy.o_health
+      });
+
+      if (getAreaOfPolygon(_enemy[j].data) < 1800) {
+        _enemy[j].state = 0;
+        spawned--;
+      }
+
+      q = 0;
+      break;
+    }
+
+    if (q) {
+      enemy.push(new EnemyFromData(e1, {
+        x: _enemy.dir.x + 2 * (e1[0].ox - oldCenterX) / _enemy.o_health,
+        y: _enemy.dir.y + 2 * (e1[0].oy - oldCenterY) / _enemy.o_health
+      }));
+
+      if (getAreaOfPolygon(enemy[enemy.length - 1].data) < 1800) {
+        enemy[enemy.length - 1].state = 0;
+        spawned--;
+      }
+    }
+
+    spawned++;
+  }
+
+  var e2 = arr;
+
+  if (e2.length > 3 && !checkIfPolygonSelfIntersect(e2)) {
+    var _newCenter = getCentroidOfPolygon(e2);
+
+    for (var _i = 0; _i < e2.length; _i++) {
+      e2[_i].ox = _newCenter.x;
+      e2[_i].oy = _newCenter.y;
+    }
+
+    var _q = 1;
+
+    for (var _j = 0; _j < _enemy.length; _j++) {
+      if (_enemy[_j].state) continue;
+      _enemy[_j] = new EnemyFromData(e2, {
+        x: _enemy.dir.x + 2 * (e2[0].ox - oldCenterX) / _enemy.o_health,
+        y: _enemy.dir.y + 2 * (e2[0].oy - oldCenterY) / _enemy.o_health
+      });
+
+      if (getAreaOfPolygon(_enemy[_j].data) < 1800) {
+        _enemy[_j].state = 0;
+        spawned--;
+      }
+
+      _q = 0;
+      break;
+    }
+
+    if (_q) {
+      enemy.push(new EnemyFromData(e2, {
+        x: _enemy.dir.x + 2 * (e2[0].ox - oldCenterX) / _enemy.o_health,
+        y: _enemy.dir.y + 2 * (e2[0].oy - oldCenterY) / _enemy.o_health
+      }));
+
+      if (getAreaOfPolygon(enemy[enemy.length - 1].data) < 1800) {
+        enemy[enemy.length - 1].state = 0;
+        spawned--;
+      }
+    }
+
+    spawned++;
+  }
+
+  if (isEndless && !spawned) {
+    var _q2 = 1;
+
+    for (var _j2 = 0; _j2 < enemy.length; _j2++) {
+      if (!enemy[_j2].state) {
+        enemy[_j2] = newEnemy();
+        _q2 = 0;
+        break;
+      }
+    }
+
+    if (_q2) enemy.push(newEnemy());
+  } //#endregion
+
+}
+
+function handleCollision_Bullet_Enemy(bullet, _enemy) {
+  var b_x = bullet.x,
+      b_y = bullet.y;
+  var inter_x,
+      inter_y,
+      inter_count = 0,
+      inter_index = 0,
+      n;
+
+  for (var j = 0, l = _enemy.data.length; j !== l; j++) {
+    var x3 = _enemy.data[j].x,
+        y3 = _enemy.data[j].y,
+        x4 = _enemy.data[(j + 1) % l].x,
+        y4 = _enemy.data[(j + 1) % l].y; //#region Check how many collision
+
+    var inter = checkCollision(b_x, b_y, bullet.px + _enemy.dir.x, bullet.py + _enemy.dir.y, x3, y3, x4, y4);
+
+    if (inter) {
+      inter_index = j;
+      inter_count++;
+      n = normalizeVector(y3 - y4, x4 - x3);
+      inter_x = inter.x;
+      inter_y = inter.y;
+    } //#endregion
+
+  }
+
+  if (inter_count === 1) {
+    //#region IF HIT
+    var xd = bullet.dir.x,
+        yd = bullet.dir.y;
+    var t = n.x * xd + n.y * yd;
+
+    if (t >= 0) {
+      bullet.dir.x -= 2 * n.x * t - _enemy.dir.x;
+      bullet.dir.y -= 2 * n.y * t - _enemy.dir.y;
+    } else {
+      bullet.dir.x += _enemy.dir.x;
+      bullet.dir.y += _enemy.dir.y;
+    }
+
+    _enemy.dir.x += (_enemy.dir.x < player.max_v - 2) * (xd - bullet.dir.x) * (50 / Math.pow(_enemy.maxR, 2));
+    _enemy.dir.y += (_enemy.dir.y < player.max_v - 2) * (yd - bullet.dir.y) * (50 / Math.pow(_enemy.maxR, 2));
+
+    var _n = normalizeVector(bullet.dir.x, bullet.dir.y);
+
+    1;
+    bullet.x = inter_x + _n.x * 0.1;
+    bullet.y = inter_y + _n.y * 0.1; // bullet.dir.x *= 0.9;
+    // bullet.dir.y *= 0.9;
+
+    _enemy.health -= bullet.damage;
+    score += bullet.damage * scoremult;
+    addPopUp(~~(bullet.damage * 10) / 10, inter_x, inter_y, 10);
+    bullet.damage *= Math.sqrt((Math.pow(bullet.dir.x, 2) + Math.pow(bullet.dir.y, 2)) / (Math.pow(xd, 2) + Math.pow(yd, 2))); //#endregion
+
+    handleEnemyDeathAndSplit(_enemy, inter_index);
+  } else if (inter_count !== 0) {
+    bullet.state = 0;
+    _enemy.health -= bullet.damage;
+    score += bullet.damage * scoremult;
+  } //#endregion
+
 } //#endregion
 //#region Creating Enemy
 
@@ -488,23 +696,25 @@ function Enemy(o_x, o_y) {
   var _maxR = 0;
 
   for (var i = 0; i < nVertices; i++) {
-    var _r = min_r + Math.random() * (max_r - min_r);
+    var _r = min_r + ModifiedRandomAboveAvg() * (max_r - min_r);
 
     if (_r > _maxR) _maxR = _r;
     EnemyPositionData.push({
       ox: o_x,
       oy: o_y,
-      x: o_x + _r * Math.cos(i * _a),
-      y: o_y + _r * Math.sin(i * _a)
+      x: o_x + _r * cos(i * _a),
+      y: o_y + _r * sin(i * _a)
     });
   }
 
   var newCenter = getCentroidOfPolygon(EnemyPositionData);
 
-  for (var _i = 0; _i < EnemyPositionData.length; _i++) {
-    EnemyPositionData[_i].ox = newCenter.x;
-    EnemyPositionData[_i].oy = newCenter.y;
+  for (var _i2 = 0; _i2 < EnemyPositionData.length; _i2++) {
+    EnemyPositionData[_i2].ox = newCenter.x;
+    EnemyPositionData[_i2].oy = newCenter.y;
   }
+
+  var _health = ~~(getAreaOfPolygon(EnemyPositionData) / 300);
 
   return {
     data: EnemyPositionData,
@@ -513,8 +723,8 @@ function Enemy(o_x, o_y) {
       y: _dir._y
     },
     maxR: _maxR,
-    health: ~~(_maxR / 3),
-    o_health: ~~(_maxR / 3),
+    health: _health,
+    o_health: _health,
     state: 1
   };
 }
@@ -536,8 +746,11 @@ function EnemyFromData(positon_data) {
   _enemy.right = a.xMax + _enemy.data[0].ox;
   _enemy.left = a.xMin + _enemy.data[0].ox;
   _enemy.maxR = Math.sqrt(Math.pow((a.xMax - a.xMin) / 2, 2) + Math.pow((a.yMax - a.yMin) / 2, 2));
-  _enemy.health = ~~(_enemy.maxR / 3);
-  _enemy.o_health = ~~(_enemy.maxR / 3);
+
+  var _health = ~~(getAreaOfPolygon(positon_data) / 300);
+
+  _enemy.health = _health;
+  _enemy.o_health = _health;
   return _enemy;
 }
 
@@ -661,15 +874,21 @@ function drawPlayer(_player) {
 
 function drawBullet(_bullet) {
   c.drawImage(_bullet.img, _bullet.x - _bullet.r, _bullet.y - _bullet.r);
+}
+
+function drawHealthBar(_enemy) {
+  var mid = (_enemy.left + _enemy.right) / 2;
+  c.strokeRect(mid - 50, _enemy.bottom + 10, 100, 10);
+  c.fillRect(mid - 50, _enemy.bottom + 10, _enemy.health / _enemy.o_health * 100, 10);
 } //#endregion
 //#region Event Handling
 
 
 canvas.addEventListener("mousemove", function (event) {
   p_angle = angle;
-  angle = Math.atan2(event.clientY + org_y - player.y, event.clientX + org_x - player.x) + Math.PI / 2;
-  bullet_start_dir.x = Bullet.bulletSpeed * Math.sin(angle);
-  bullet_start_dir.y = -Bullet.bulletSpeed * Math.cos(angle); // console.log(angle * 180 / Math.PI);
+  angle = atan2(event.clientY + org_y - player.y, event.clientX + org_x - player.x) + Math.PI / 2;
+  bullet_start_dir.x = Bullet.bulletSpeed * sin(angle);
+  bullet_start_dir.y = -Bullet.bulletSpeed * cos(angle); // console.log(angle * 180 / Math.PI);
 });
 var playerAccel = 2;
 document.addEventListener("keydown", function (event) {
@@ -705,7 +924,6 @@ window.addEventListener("resize", function () {
 
 function setup() {
   score = 0;
-  rounded_score = 0;
   enemy = [function () {
     var _r = minR + ModifiedRandomBelowAvg() * (maxR - minR);
 
@@ -742,84 +960,103 @@ function draw() {
     if (enemy[i].state) updateEnemy(enemy[i]);
   }
 
-  for (var _i2 = 0; _i2 < enemy.length; _i2++) {
-    if (enemy[_i2].state) {
-      drawEnemy(enemy[_i2]);
+  for (var _i3 = 0; _i3 < enemy.length; _i3++) {
+    if (enemy[_i3].state) {
+      drawEnemy(enemy[_i3]);
     }
   }
 
   drawPlayer(player);
-  rounded_score = ~~score;
-  c.fillText("Score(x".concat(scoremult, "):").concat(rounded_score), org_x + 10, org_y + 32); //#endregion
+  c.fillText("Score(x".concat(scoremult, "):").concat(~~score), org_x + 10, org_y + 32);
+
+  for (var _i4 = 0; _i4 < popUps.length; _i4++) {
+    if (popUps[_i4][3] !== 0) {
+      c.fillText(popUps[_i4][0], popUps[_i4][1], popUps[_i4][2]);
+      popUps[_i4][3]--;
+      popUps[_i4][2] -= 7;
+    }
+  }
+
+  for (var _i5 in enemiesToShowHealth) {
+    if (enemiesToShowHealth[_i5] === 0 || !enemy[_i5].state) {
+      delete enemiesToShowHealth[_i5];
+      continue;
+    }
+
+    drawHealthBar(enemy[_i5]);
+    enemiesToShowHealth[_i5]--;
+  } // enemiesToShowHealth.clear();
+  //#endregion
   //#region Enemy Wrap Around
 
-  for (var _i3 = 0; _i3 !== enemy.length; _i3++) {
-    var left = enemy[_i3].left;
-    var right = enemy[_i3].right;
-    var top = enemy[_i3].top;
-    var bottom = enemy[_i3].bottom;
+
+  for (var _i6 = 0; _i6 !== enemy.length; _i6++) {
+    var left = enemy[_i6].left;
+    var right = enemy[_i6].right;
+    var top = enemy[_i6].top;
+    var bottom = enemy[_i6].bottom;
 
     if (left > org_x + c_width) {
       var a = right - org_x;
-      enemy[_i3].left -= a;
-      enemy[_i3].right -= a;
+      enemy[_i6].left -= a;
+      enemy[_i6].right -= a;
 
-      for (var j = 0; j !== enemy[_i3].data.length; j++) {
-        enemy[_i3].data[j].x -= a;
-        enemy[_i3].data[j].ox -= a;
+      for (var j = 0; j !== enemy[_i6].data.length; j++) {
+        enemy[_i6].data[j].x -= a;
+        enemy[_i6].data[j].ox -= a;
       }
     } else if (right < org_x) {
       var _a2 = c_width + org_x - left;
 
-      enemy[_i3].left += _a2;
-      enemy[_i3].right += _a2;
+      enemy[_i6].left += _a2;
+      enemy[_i6].right += _a2;
 
-      for (var _j = 0; _j !== enemy[_i3].data.length; _j++) {
-        enemy[_i3].data[_j].x += _a2;
-        enemy[_i3].data[_j].ox += _a2;
+      for (var _j3 = 0; _j3 !== enemy[_i6].data.length; _j3++) {
+        enemy[_i6].data[_j3].x += _a2;
+        enemy[_i6].data[_j3].ox += _a2;
       }
     }
 
     if (bottom < -maxMapHeight) {
       var _a3 = c_height - top;
 
-      enemy[_i3].top += _a3;
-      enemy[_i3].bottom += _a3;
+      enemy[_i6].top += _a3;
+      enemy[_i6].bottom += _a3;
 
-      for (var _j2 = 0; _j2 !== enemy[_i3].data.length; _j2++) {
-        enemy[_i3].data[_j2].y += _a3;
-        enemy[_i3].data[_j2].oy += _a3;
+      for (var _j4 = 0; _j4 !== enemy[_i6].data.length; _j4++) {
+        enemy[_i6].data[_j4].y += _a3;
+        enemy[_i6].data[_j4].oy += _a3;
       }
     } else if (top > c_height) {
       var _a4 = maxMapHeight + bottom;
 
-      enemy[_i3].top -= _a4;
-      enemy[_i3].bottom -= _a4;
+      enemy[_i6].top -= _a4;
+      enemy[_i6].bottom -= _a4;
 
-      for (var _j3 = 0; _j3 !== enemy[_i3].data.length; _j3++) {
-        enemy[_i3].data[_j3].y -= _a4;
-        enemy[_i3].data[_j3].oy -= _a4;
+      for (var _j5 = 0; _j5 !== enemy[_i6].data.length; _j5++) {
+        enemy[_i6].data[_j5].y -= _a4;
+        enemy[_i6].data[_j5].oy -= _a4;
       }
     }
   } //#endregion
   //#region Draw bullets & Collision detection between bullets & others
 
 
-  for (var _i4 = 0; _i4 < bullet.length; _i4++) {
-    if (bullet[_i4].state) {
-      drawBullet(bullet[_i4]);
-      bullet[_i4].px = bullet[_i4].x;
-      bullet[_i4].py = bullet[_i4].y;
+  for (var _i7 = 0; _i7 < bullet.length; _i7++) {
+    if (bullet[_i7].state) {
+      drawBullet(bullet[_i7]);
+      bullet[_i7].px = bullet[_i7].x;
+      bullet[_i7].py = bullet[_i7].y;
 
-      bullet[_i4].update();
+      bullet[_i7].update();
 
-      var b_x = bullet[_i4].x,
-          b_y = bullet[_i4].y; //#region Player Collision Detection
+      var b_x = bullet[_i7].x,
+          b_y = bullet[_i7].y; //#region Player Collision Detection
 
       if (isHardMode) {
         var squareDist = Math.pow(player.x - b_x, 2) + Math.pow(player.y - b_y, 2);
 
-        if (squareDist <= Math.pow(player.size / 3 + bullet[_i4].r, 2)) {
+        if (squareDist <= Math.pow(player.size / 3 + bullet[_i7].r, 2)) {
           resetPlayer(player);
         }
       } //#endregion
@@ -828,271 +1065,14 @@ function draw() {
 
       for (var m = 0, __l = enemy.length; m !== __l; m++) {
         if (!enemy[m].state) continue;
-
-        if (b_x > enemy[m].left - 10 && b_x < enemy[m].right + 10 && b_y < enemy[m].bottom + 10 && b_y > enemy[m].top - 10) {
-          var inter_x = void 0,
-              inter_y = void 0,
-              inter_count = 0,
-              inter_index = 0,
-              n = void 0; // let inter = checkCollision_Bullet_Enemy(bullet[i], enemy[m]);
-          // if (inter) {
-          //   inter_index = inter.index;
-          //   inter_count++;
-          //   n = inter.normal;
-          //   inter_x = inter.x;
-          //   inter_y = inter.y;
-          //   c.beginPath()
-          //   c.moveTo(inter_x, inter_y);
-          //   c.lineTo(inter.x + n.x * 100, inter_y + n.y * 100);
-          //   c.stroke();
-          // }
-
-          for (var _j4 = 0, l = enemy[m].data.length; _j4 !== l; _j4++) {
-            var x3 = enemy[m].data[_j4].x,
-                y3 = enemy[m].data[_j4].y,
-                x4 = enemy[m].data[(_j4 + 1) % l].x,
-                y4 = enemy[m].data[(_j4 + 1) % l].y; //#region Check how many collision
-
-            var inter = checkCollision(b_x, b_y, bullet[_i4].px + enemy[m].dir.x, bullet[_i4].py + enemy[m].dir.y, x3, y3, x4, y4);
-
-            if (inter) {
-              inter_index = _j4;
-              inter_count++;
-              n = normalizeVector(y3 - y4, x4 - x3);
-              inter_x = inter.x;
-              inter_y = inter.y; // c.beginPath()
-              // c.moveTo(inter_x, inter_y);
-              // c.lineTo(inter.x + y3 - y4, inter_y + x4 - x3);
-              // c.stroke();
-            } //#endregion
-
-          }
-
-          if (inter_count % 2 !== 0) {
-            //#region IF HIT
-            //#region OLD collision
-            var xd = bullet[_i4].dir.x,
-                yd = bullet[_i4].dir.y;
-            var t = n.x * xd + n.y * yd;
-
-            if (t >= 0) {
-              bullet[_i4].dir.x -= 2 * n.x * t - enemy[m].dir.x;
-              bullet[_i4].dir.y -= 2 * n.y * t - enemy[m].dir.y;
-            } else {
-              bullet[_i4].dir.x += enemy[m].dir.x;
-              bullet[_i4].dir.y += enemy[m].dir.y;
-            }
-
-            enemy[m].dir.x += (enemy[m].dir.x < player.max_v - 2) * (xd - bullet[_i4].dir.x) * (50 / Math.pow(enemy[m].maxR, 2));
-            enemy[m].dir.y += (enemy[m].dir.y < player.max_v - 2) * (yd - bullet[_i4].dir.y) * (50 / Math.pow(enemy[m].maxR, 2)); //#endregion
-            //#region Oof
-            // let xd = bullet[i].dir.x,
-            //   yd = bullet[i].dir.y,
-            //   xe = enemy[m].dir.x,
-            //   ye = enemy[m].dir.y;
-            // let v1 = Math.sqrt(xd ** 2 + yd ** 2),
-            //   m1 = 1,
-            //   phi1 = Math.atan2(yd, xd);
-            // let v2 = Math.sqrt(xe ** 2 + ye ** 2),
-            //   m2 = enemy[m].maxR,
-            //   phi2 = Math.atan2(ye, xe);
-            // let __n = normalizeVector(bullet[i].dir.x, bullet[i].dir.y);
-            // let small_phi = Math.atan2(
-            //   inter_y - inter_y*__n.x,
-            //   inter_x - inter_x*__n.y
-            // );
-            // let a =
-            //     (v1 * (m1 - m2) * Math.cos(phi1 - small_phi) +
-            //       2 * m2 * v2 * Math.cos(phi2 - small_phi)) /
-            //     (m1 + m2),
-            //   a1 =
-            //     v1 *
-            //     Math.sin(phi1 - small_phi) ;
-            // bullet[i].dir.x =
-            //   a * Math.cos(small_phi) + a1 * Math.cos(small_phi + Math.PI / 2);
-            // bullet[i].dir.y =
-            //   a * Math.sin(small_phi) + a1 * Math.sin(small_phi + Math.PI / 2);
-            // let b =
-            //     (v2 * (m2 - m1) * Math.cos(phi2 - small_phi) +
-            //       2 * m1 * v1 * Math.cos(phi1 - small_phi)) /
-            //     (m1 + m2),
-            //   b1 =
-            //     v2 *
-            //     Math.sin(phi2 - small_phi);
-            // enemy[m].dir.x =
-            //   b * Math.cos(small_phi) + b1 * Math.cos(small_phi + Math.PI / 2);
-            // enemy[m].dir.y =
-            //   b * Math.sin(small_phi) + b1 * Math.sin(small_phi + Math.PI / 2);
-            //#endregion
-
-            var _n = normalizeVector(bullet[_i4].dir.x, bullet[_i4].dir.y);
-
-            1;
-            bullet[_i4].x = inter_x + _n.x;
-            bullet[_i4].y = inter_y + _n.y; // bullet[i].x += enemy[m].dir.x * _n.x;
-            // bullet[i].y += enemy[m].dir.y * _n.y;
-            // bullet[i].dir.x *= 0.9;
-            // bullet[i].dir.y *= 0.9;
-
-            enemy[m].health -= bullet[_i4].damage;
-            score += bullet[_i4].damage * scoremult;
-            bullet[_i4].damage *= Math.sqrt((Math.pow(bullet[_i4].dir.x, 2) + Math.pow(bullet[_i4].dir.y, 2)) / (Math.pow(xd, 2) + Math.pow(yd, 2))); //#region Enemy die and split
-
-            if (enemy[m].health < 1) {
-              enemy[m].state = 0;
-              score += enemy[m].o_health * scoremult;
-              var spawned = 0;
-
-              var _t = (inter_index + 1 + ~~(enemy[m].data.length / 2)) % enemy[m].data.length;
-
-              var _a5 = inter_index + 1,
-                  b = _t,
-                  e1 = void 0;
-
-              var arr = enemy[m].data;
-              var oldCenterX = arr[0].ox,
-                  oldCenterY = arr[0].oy;
-
-              var copy_of_b = _objectSpread({}, arr[b]);
-
-              if (_a5 < b) {
-                e1 = arr.splice(_a5, b - _a5 + 1, {
-                  ox: arr[0].ox,
-                  oy: arr[0].oy,
-                  x: arr[0].ox,
-                  y: arr[0].oy
-                }, copy_of_b);
-              } else {
-                e1 = arr.splice(b, _a5 - b, copy_of_b, {
-                  ox: arr[0].ox,
-                  oy: arr[0].oy,
-                  x: arr[0].ox,
-                  y: arr[0].oy
-                });
-              }
-
-              e1.push({
-                ox: arr[0].ox,
-                oy: arr[0].oy,
-                x: arr[0].ox,
-                y: arr[0].oy
-              }); // console.log(e1.slice());
-
-              if (e1.length > 3 && !checkIfPolygonSelfIntersect(e1)) {
-                var newCenter = getCentroidOfPolygon(e1);
-
-                for (var v = 0; v < e1.length; v++) {
-                  e1[v].ox = newCenter.x;
-                  e1[v].oy = newCenter.y;
-                }
-
-                var q = 1;
-
-                for (var z = 0; z < enemy.length; z++) {
-                  if (!enemy[z].state) {
-                    enemy[z] = new EnemyFromData(e1, {
-                      x: enemy[m].dir.x + 2 * (e1[0].ox - oldCenterX) / enemy[m].maxR,
-                      y: enemy[m].dir.y + 2 * (e1[0].oy - oldCenterY) / enemy[m].maxR
-                    });
-
-                    if (getAreaOfPolygon(enemy[z].data) < 1800) {
-                      enemy[z].state = 0;
-                      spawned--;
-                    }
-
-                    q = 0;
-                    break;
-                  }
-                }
-
-                if (q) {
-                  enemy.push(new EnemyFromData(e1, {
-                    x: enemy[m].dir.x + 2 * (e1[0].ox - oldCenterX) / enemy[m].maxR,
-                    y: enemy[m].dir.y + 2 * (e1[0].oy - oldCenterY) / enemy[m].maxR
-                  }));
-
-                  if (getAreaOfPolygon(enemy[enemy.length - 1].data) < 1800) {
-                    enemy[enemy.length - 1].state = 0;
-                    spawned--;
-                  }
-                }
-
-                spawned++;
-              }
-
-              var e2 = arr;
-
-              if (e2.length > 3 && !checkIfPolygonSelfIntersect(e2)) {
-                var _newCenter = getCentroidOfPolygon(e2);
-
-                for (var _v = 0; _v < e2.length; _v++) {
-                  e2[_v].ox = _newCenter.x;
-                  e2[_v].oy = _newCenter.y;
-                }
-
-                var _q = 1;
-
-                for (var _z = 0; _z < enemy.length; _z++) {
-                  if (!enemy[_z].state) {
-                    enemy[_z] = new EnemyFromData(e2, {
-                      x: enemy[m].dir.x + 2 * (e2[0].ox - oldCenterX) / enemy[m].maxR,
-                      y: enemy[m].dir.y + 2 * (e2[0].oy - oldCenterY) / enemy[m].maxR
-                    });
-
-                    if (getAreaOfPolygon(enemy[_z].data) < 1800) {
-                      enemy[_z].state = 0;
-                      spawned--;
-                    }
-
-                    _q = 0;
-                    break;
-                  }
-                }
-
-                if (_q) {
-                  enemy.push(new EnemyFromData(e2, {
-                    x: enemy[m].dir.x + 2 * (e2[0].ox - oldCenterX) / enemy[m].maxR,
-                    y: enemy[m].dir.y + 2 * (e2[0].oy - oldCenterY) / enemy[m].maxR
-                  }));
-
-                  if (getAreaOfPolygon(enemy[enemy.length - 1].data) < 1800) {
-                    enemy[enemy.length - 1].state = 0;
-                    spawned--;
-                  }
-                }
-
-                spawned++;
-              }
-
-              if (isEndless && !spawned) {
-                var _q2 = 1;
-
-                for (var _z2 = 0; _z2 < enemy.length; _z2++) {
-                  if (!enemy[_z2].state) {
-                    enemy[_z2] = newEnemy();
-                    _q2 = 0;
-                    break;
-                  }
-                }
-
-                if (_q2) enemy.push(newEnemy());
-              }
-
-              break;
-            } //#endregion
-
-          } else if (inter_count !== 0) {
-            bullet[_i4].state = 0;
-            enemy[m].health -= bullet[_i4].damage;
-            score += bullet[_i4].damage * scoremult;
-          } //#endregion
-
-        }
+        if (!(b_x > enemy[m].left - 10 && b_x < enemy[m].right + 10 && b_y < enemy[m].bottom + 10 && b_y > enemy[m].top - 10)) continue;
+        enemiesToShowHealth[m] = 10;
+        handleCollision_Bullet_Enemy(bullet[_i7], enemy[m]);
       } //#endregion
 
 
-      if (b_y < org_y - bullet[_i4].r || b_y > org_y + c_height || b_x < org_x || b_x > org_x + c_width || Math.sqrt(Math.pow(bullet[_i4].dir.x, 2) + Math.pow(bullet[_i4].dir.y, 2)) < 0.65) {
-        bullet[_i4].state = 0;
+      if (b_y < org_y - bullet[_i7].r || b_y > org_y + c_height || b_x < org_x || b_x > org_x + c_width || Math.sqrt(Math.pow(bullet[_i7].dir.x, 2) + Math.pow(bullet[_i7].dir.y, 2)) < 0.65) {
+        bullet[_i7].state = 0;
         continue;
       } // drawBullet(bullet[i]);
 
@@ -1107,14 +1087,15 @@ function draw() {
         player_y = player.y;
 
     if (player_x > enemy[_m].left - 10 && player_x < enemy[_m].right + 10 && player_y < enemy[_m].bottom + 10 && player_y > enemy[_m].top - 10) {
-      for (var _j5 = 0, _l2 = enemy[_m].data.length; _j5 !== _l2; _j5++) {
-        var _x2 = enemy[_m].data[_j5].x,
-            _y2 = enemy[_m].data[_j5].y,
-            _x3 = enemy[_m].data[(_j5 + 1) % _l2].x,
-            _y3 = enemy[_m].data[(_j5 + 1) % _l2].y;
+      for (var _j6 = 0, l = enemy[_m].data.length; _j6 !== l; _j6++) {
+        var x3 = enemy[_m].data[_j6].x,
+            y3 = enemy[_m].data[_j6].y,
+            x4 = enemy[_m].data[(_j6 + 1) % l].x,
+            y4 = enemy[_m].data[(_j6 + 1) % l].y;
 
-        if (checkCollision(player_x, player_y, player.px + enemy[_m].dir.x, player.py + enemy[_m].dir.y, _x2, _y2, _x3, _y3)) {
+        if (checkCollision(player_x, player_y, player.px + enemy[_m].dir.x, player.py + enemy[_m].dir.y, x3, y3, x4, y4)) {
           resetPlayer(player);
+          break;
         }
       }
     }
@@ -1161,18 +1142,18 @@ function draw() {
       return keyPressedPool.has(x);
     }).length) {
       if (!bulletTimer) {
-        var _n2 = 1;
+        var n = 1;
 
-        for (var _i5 = 0; _i5 < bullet.length; _i5++) {
-          if (!bullet[_i5].state) {
-            bullet[_i5].reset(player.x + player.size / 2 * Math.cos(angle - Math.PI / 2), player.y + player.size / 2 * Math.sin(angle - Math.PI / 2), _objectSpread({}, bullet_start_dir));
+        for (var _i8 = 0; _i8 < bullet.length; _i8++) {
+          if (!bullet[_i8].state) {
+            bullet[_i8].reset(player.x + player.size / 2 * cos(angle - Math.PI / 2), player.y + player.size / 2 * sin(angle - Math.PI / 2), _objectSpread({}, bullet_start_dir));
 
-            _n2 = 0;
+            n = 0;
             break;
           }
         }
 
-        if (_n2) bullet.push(new Bullet(player.x + player.size / 2 * Math.cos(angle - Math.PI / 2), player.y + player.size / 2 * Math.sin(angle - Math.PI / 2), 5, _objectSpread({}, bullet_start_dir)));
+        if (n) bullet.push(new Bullet(player.x + player.size / 2 * cos(angle - Math.PI / 2), player.y + player.size / 2 * sin(angle - Math.PI / 2), 5, _objectSpread({}, bullet_start_dir)));
         bulletTimer = o_bulletTimer;
       } else bulletTimer--;
     }
@@ -1211,7 +1192,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "60613" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "49531" + '/');
 
   ws.onmessage = function (event) {
     checkedAssets = {};

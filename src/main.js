@@ -1,4 +1,5 @@
-"use strict";
+let { sin, cos, atan2 } = Math;
+
 let controlKey = {
   up: ["ArrowUp", "KeyW"],
   down: ["ArrowDown", "KeyS"],
@@ -489,8 +490,8 @@ function Enemy(
     EnemyPositionData.push({
       ox: o_x,
       oy: o_y,
-      x: o_x + _r * Math.cos(i * _a),
-      y: o_y + _r * Math.sin(i * _a),
+      x: o_x + _r * cos(i * _a),
+      y: o_y + _r * sin(i * _a),
     });
   }
   let newCenter = getCentroidOfPolygon(EnemyPositionData);
@@ -657,13 +658,13 @@ function drawHealthBar(_enemy) {
 canvas.addEventListener("mousemove", (event) => {
   p_angle = angle;
   angle =
-    Math.atan2(
+    atan2(
       event.clientY + org_y - player.y,
       event.clientX + org_x - player.x
     ) +
     Math.PI / 2;
-  bullet_start_dir.x = Bullet.bulletSpeed * Math.sin(angle);
-  bullet_start_dir.y = -Bullet.bulletSpeed * Math.cos(angle);
+  bullet_start_dir.x = Bullet.bulletSpeed * sin(angle);
+  bullet_start_dir.y = -Bullet.bulletSpeed * cos(angle);
   // console.log(angle * 180 / Math.PI);
 });
 let playerAccel = 2;
@@ -943,8 +944,8 @@ function draw() {
         for (let i = 0; i < bullet.length; i++) {
           if (!bullet[i].state) {
             bullet[i].reset(
-              player.x + (player.size / 2) * Math.cos(angle - Math.PI / 2),
-              player.y + (player.size / 2) * Math.sin(angle - Math.PI / 2),
+              player.x + (player.size / 2) * cos(angle - Math.PI / 2),
+              player.y + (player.size / 2) * sin(angle - Math.PI / 2),
               { ...bullet_start_dir }
             );
             n = 0;
@@ -954,8 +955,8 @@ function draw() {
         if (n)
           bullet.push(
             new Bullet(
-              player.x + (player.size / 2) * Math.cos(angle - Math.PI / 2),
-              player.y + (player.size / 2) * Math.sin(angle - Math.PI / 2),
+              player.x + (player.size / 2) * cos(angle - Math.PI / 2),
+              player.y + (player.size / 2) * sin(angle - Math.PI / 2),
               5,
               { ...bullet_start_dir }
             )
