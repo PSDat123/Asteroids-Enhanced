@@ -1,0 +1,16 @@
+@font-face {
+  font-family: pressStart;
+  src: url(/PressStart2P-Regular.b254dddf.ttf);
+}
+body{
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+#main-canvas{
+  position: absolute;
+  /* width: 100%;
+  height: 100%; */
+}
+
+/*# sourceMappingURL=/main.af46ece4.css.map */
