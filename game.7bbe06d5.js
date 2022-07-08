@@ -117,7 +117,7 @@ parcelRequire = (function (modules, cache, entry, globalName) {
   }
 
   return newRequire;
-})({"main.js":[function(require,module,exports) {
+})({"game.js":[function(require,module,exports) {
 function _createForOfIteratorHelper(o, allowArrayLike) { var it = typeof Symbol !== "undefined" && o[Symbol.iterator] || o["@@iterator"]; if (!it) { if (Array.isArray(o) || (it = _unsupportedIterableToArray(o)) || allowArrayLike && o && typeof o.length === "number") { if (it) o = it; var i = 0; var F = function F() {}; return { s: F, n: function n() { if (i >= o.length) return { done: true }; return { done: false, value: o[i++] }; }, e: function e(_e) { throw _e; }, f: F }; } throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); } var normalCompletion = true, didErr = false, err; return { s: function s() { it = it.call(o); }, n: function n() { var step = it.next(); normalCompletion = step.done; return step; }, e: function e(_e2) { didErr = true; err = _e2; }, f: function f() { try { if (!normalCompletion && it.return != null) it.return(); } finally { if (didErr) throw err; } } }; }
 
 function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) { symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); } keys.push.apply(keys, symbols); } return keys; }
@@ -207,11 +207,14 @@ org_player_x = c_width / 2,
     score = 0,
     scoremult = 1,
     popUps = [],
-    enemiesToShowHealth = {
-  0: 0
-},
-    enemyInView = new Set(),
-    maxBurstAmmount = 20;
+    // enemiesToShowHealth = { 0: 0 },
+enemyInView = new Set(),
+    maxBurstAmmount = 20,
+    whiteRGB = {
+  r: 255,
+  g: 255,
+  b: 255
+};
 var isEndless = 0,
     isHardMode = 0; //#endregion
 //#region Setup Functions
@@ -223,6 +226,8 @@ var Bullet = /*#__PURE__*/function () {
       x: 0,
       y: -Bullet.bulletSpeed
     };
+
+    var _damage = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 1;
 
     _classCallCheck(this, Bullet);
 
@@ -252,7 +257,7 @@ var Bullet = /*#__PURE__*/function () {
 
     this.dir = _dir;
     this.state = 1;
-    this.damage = 1;
+    this.damage = _damage;
   }
 
   _createClass(Bullet, [{
@@ -266,8 +271,10 @@ var Bullet = /*#__PURE__*/function () {
     value: function reset(x, y) {
       var _dir = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {
         x: 0,
-        y: -Bullet.speed
+        y: -Bullet.bulletSpeed
       };
+
+      var _damage = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : 1;
 
       this.x = x;
       this.y = y;
@@ -275,7 +282,7 @@ var Bullet = /*#__PURE__*/function () {
       this.py = y;
       this.dir = _dir;
       this.state = 1;
-      this.damage = 1;
+      this.damage = _damage;
     }
   }]);
 
@@ -476,8 +483,11 @@ function addPopUp(text, x, y, frame) {
 
 function handleEnemyDeathAndSplit(_enemy, inter_index) {
   //#region Enemy die and split
-  if (_enemy.health > 0) return;
+  if (_enemy.data[inter_index].health > 0) return;
   _enemy.state = 0;
+  _enemy.data[inter_index].health = _enemy.o_health;
+  _enemy.data[inter_index].g = 255;
+  _enemy.data[inter_index].b = 255;
   addPopUp(~~_enemy.o_health, _enemy.data[0].ox, _enemy.data[0].oy, 30);
   score += _enemy.o_health * scoremult;
   var spawned = 0;
@@ -492,27 +502,30 @@ function handleEnemyDeathAndSplit(_enemy, inter_index) {
   var copy_of_b = _objectSpread({}, arr[b]);
 
   if (a < b) {
-    e1 = arr.splice(a, b - a + 1, {
+    e1 = arr.splice(a, b - a + 1, _objectSpread({
       ox: arr[0].ox,
       oy: arr[0].oy,
       x: arr[0].ox,
-      y: arr[0].oy
-    }, copy_of_b);
+      y: arr[0].oy,
+      health: _enemy.o_health
+    }, whiteRGB), copy_of_b);
   } else {
-    e1 = arr.splice(b, a - b, copy_of_b, {
+    e1 = arr.splice(b, a - b, copy_of_b, _objectSpread({
       ox: arr[0].ox,
       oy: arr[0].oy,
       x: arr[0].ox,
-      y: arr[0].oy
-    });
+      y: arr[0].oy,
+      health: _enemy.o_health
+    }, whiteRGB));
   }
 
-  e1.push({
+  e1.push(_objectSpread({
     ox: arr[0].ox,
     oy: arr[0].oy,
     x: arr[0].ox,
-    y: arr[0].oy
-  });
+    y: arr[0].oy,
+    health: _enemy.o_health
+  }, whiteRGB));
 
   if (e1.length > 3 && !checkIfPolygonSelfIntersect(e1)) {
     var newCenter = getCentroidOfPolygon(e1);
@@ -524,26 +537,27 @@ function handleEnemyDeathAndSplit(_enemy, inter_index) {
 
     var q = 1;
 
-    for (var j = 0; j < _enemy.length; j++) {
-      if (_enemy[j].state) continue;
-      _enemy[j] = new EnemyFromData(e1, {
-        x: _enemy.dir.x + 2 * (e1[0].ox - oldCenterX) / _enemy.o_health,
-        y: _enemy.dir.y + 2 * (e1[0].oy - oldCenterY) / _enemy.o_health
-      });
+    for (var j = 0; j < enemy.length; j++) {
+      if (!enemy[j].state) {
+        enemy[j] = new EnemyFromData(e1, _enemy.o_health, {
+          x: _enemy.dir.x + 2 * (e1[0].ox - oldCenterX) / _enemy.maxR,
+          y: _enemy.dir.y + 2 * (e1[0].oy - oldCenterY) / _enemy.maxR
+        });
 
-      if (getAreaOfPolygon(_enemy[j].data) < 1800) {
-        _enemy[j].state = 0;
-        spawned--;
+        if (getAreaOfPolygon(enemy[j].data) < 1800) {
+          enemy[j].state = 0;
+          spawned--;
+        }
+
+        q = 0;
+        break;
       }
-
-      q = 0;
-      break;
     }
 
     if (q) {
-      enemy.push(new EnemyFromData(e1, {
-        x: _enemy.dir.x + 2 * (e1[0].ox - oldCenterX) / _enemy.o_health,
-        y: _enemy.dir.y + 2 * (e1[0].oy - oldCenterY) / _enemy.o_health
+      enemy.push(new EnemyFromData(e1, _enemy.o_health, {
+        x: _enemy.dir.x + 2 * (e1[0].ox - oldCenterX) / _enemy.maxR,
+        y: _enemy.dir.y + 2 * (e1[0].oy - oldCenterY) / _enemy.maxR
       }));
 
       if (getAreaOfPolygon(enemy[enemy.length - 1].data) < 1800) {
@@ -567,26 +581,27 @@ function handleEnemyDeathAndSplit(_enemy, inter_index) {
 
     var _q = 1;
 
-    for (var _j = 0; _j < _enemy.length; _j++) {
-      if (_enemy[_j].state) continue;
-      _enemy[_j] = new EnemyFromData(e2, {
-        x: _enemy.dir.x + 2 * (e2[0].ox - oldCenterX) / _enemy.o_health,
-        y: _enemy.dir.y + 2 * (e2[0].oy - oldCenterY) / _enemy.o_health
-      });
+    for (var _j = 0; _j < enemy.length; _j++) {
+      if (!enemy[_j].state) {
+        enemy[_j] = new EnemyFromData(e2, _enemy.o_health, {
+          x: _enemy.dir.x + 2 * (e2[0].ox - oldCenterX) / _enemy.maxR,
+          y: _enemy.dir.y + 2 * (e2[0].oy - oldCenterY) / _enemy.maxR
+        });
 
-      if (getAreaOfPolygon(_enemy[_j].data) < 1800) {
-        _enemy[_j].state = 0;
-        spawned--;
+        if (getAreaOfPolygon(enemy[_j].data) < 1800) {
+          enemy[_j].state = 0;
+          spawned--;
+        }
+
+        _q = 0;
+        break;
       }
-
-      _q = 0;
-      break;
     }
 
     if (_q) {
-      enemy.push(new EnemyFromData(e2, {
-        x: _enemy.dir.x + 2 * (e2[0].ox - oldCenterX) / _enemy.o_health,
-        y: _enemy.dir.y + 2 * (e2[0].oy - oldCenterY) / _enemy.o_health
+      enemy.push(new EnemyFromData(e2, _enemy.o_health, {
+        x: _enemy.dir.x + 2 * (e2[0].ox - oldCenterX) / _enemy.maxR,
+        y: _enemy.dir.y + 2 * (e2[0].oy - oldCenterY) / _enemy.maxR
       }));
 
       if (getAreaOfPolygon(enemy[enemy.length - 1].data) < 1800) {
@@ -655,8 +670,10 @@ function handleCollision_Bullet_Enemy(bullet, _enemy) {
       bullet.dir.y += _enemy.dir.y;
     }
 
-    _enemy.dir.x += (_enemy.dir.x < player.max_v - 2) * (xd - bullet.dir.x) * (50 / Math.pow(_enemy.maxR, 2));
-    _enemy.dir.y += (_enemy.dir.y < player.max_v - 2) * (yd - bullet.dir.y) * (50 / Math.pow(_enemy.maxR, 2));
+    if (Math.sqrt(Math.pow(_enemy.dir.x, 2) + Math.pow(_enemy.dir.y, 2)) < player.max_v - 2) {
+      _enemy.dir.x += (xd - bullet.dir.x) * (10 / Math.pow(_enemy.maxR, 2));
+      _enemy.dir.y += (yd - bullet.dir.y) * (10 / Math.pow(_enemy.maxR, 2));
+    }
 
     var _n = normalizeVector(bullet.dir.x, bullet.dir.y);
 
@@ -665,7 +682,9 @@ function handleCollision_Bullet_Enemy(bullet, _enemy) {
     bullet.y = inter_y + _n.y * 0.1; // bullet.dir.x *= 0.9;
     // bullet.dir.y *= 0.9;
 
-    _enemy.health -= bullet.damage;
+    _enemy.data[inter_index].health -= bullet.damage;
+    _enemy.data[inter_index].g = ~~(255 * _enemy.data[inter_index].health / _enemy.o_health);
+    _enemy.data[inter_index].b = _enemy.data[inter_index].g;
     score += bullet.damage * scoremult;
     addPopUp(~~(bullet.damage * 10) / 10, inter_x, inter_y, 10);
     bullet.damage *= Math.sqrt((Math.pow(bullet.dir.x, 2) + Math.pow(bullet.dir.y, 2)) / (Math.pow(xd, 2) + Math.pow(yd, 2))); //#endregion
@@ -673,7 +692,9 @@ function handleCollision_Bullet_Enemy(bullet, _enemy) {
     handleEnemyDeathAndSplit(_enemy, inter_index);
   } else if (inter_count !== 0) {
     bullet.state = 0;
-    _enemy.health -= bullet.damage;
+    _enemy.data[inter_index].health -= bullet.damage;
+    _enemy.data[inter_index].g = ~~(255 * _enemy.data[inter_index].health / _enemy.o_health);
+    _enemy.data[inter_index].b = _enemy.data[inter_index].g;
     score += bullet.damage * scoremult;
     addPopUp(~~(bullet.damage * 10) / 10, inter_x, inter_y, 10);
     handleEnemyDeathAndSplit(_enemy, inter_index);
@@ -704,11 +725,20 @@ function shootBullet() {
 }
 
 function burstBullet() {
-  var n = 0;
+  var n = 0,
+      randomAngle = 0,
+      randomSpeedMult = 0.7;
 
   for (var i = 0; i < bullet.length; ++i) {
     if (!bullet[i].state) {
-      bullet[i].reset(player.x + player.size / 2 * cos(angle - Math.PI / 2 + Math.random() * 2 * Math.PI - Math.PI), player.y + player.size / 2 * sin(angle - Math.PI / 2 + Math.random() * 2 * Math.PI - Math.PI), _objectSpread({}, bullet_start_dir));
+      randomAngle = Math.PI * (-1 / 6 + Math.random() * (1 / 3));
+      randomSpeedMult = 0.7 + Math.random();
+      var newDirX = (bullet_start_dir.x * cos(randomAngle) - bullet_start_dir.y * sin(randomAngle)) * randomSpeedMult,
+          newDirY = (bullet_start_dir.x * sin(randomAngle) + bullet_start_dir.y * cos(randomAngle)) * randomSpeedMult;
+      bullet[i].reset(player.x + player.size / 2 * cos(angle - Math.PI / 2), player.y + player.size / 2 * sin(angle - Math.PI / 2), {
+        x: newDirX,
+        y: newDirY
+      }, Math.sqrt(Math.pow(newDirX, 2) + Math.pow(newDirY, 2)) / Bullet.bulletSpeed);
       ++n;
       player.ax -= 2 * bullet_start_dir.x / player_size; // Note: multiply with bullet damage later
 
@@ -719,7 +749,16 @@ function burstBullet() {
   }
 
   for (var _i2 = n; _i2 < maxBurstAmmount; ++_i2) {
-    bullet.push(new Bullet(player.x + player.size / 2 * cos(angle - Math.PI / 2 + Math.random() * 2 * Math.PI - Math.PI), player.y + player.size / 2 * sin(angle - Math.PI / 2 + Math.random() * 2 * Math.PI - Math.PI), 5, _objectSpread({}, bullet_start_dir)));
+    randomAngle = Math.PI * (Math.random() / 2 - 0.25);
+    randomSpeedMult = 0.7 + Math.random();
+
+    var _newDirX = (bullet_start_dir.x * cos(randomAngle) - bullet_start_dir.y * sin(randomAngle)) * randomSpeedMult,
+        _newDirY = (bullet_start_dir.x * sin(randomAngle) + bullet_start_dir.y * cos(randomAngle)) * randomSpeedMult;
+
+    bullet.push(new Bullet(player.x + player.size / 2 * cos(angle - Math.PI / 2 + Math.random() * 2 * Math.PI - Math.PI), player.y + player.size / 2 * sin(angle - Math.PI / 2 + Math.random() * 2 * Math.PI - Math.PI), 5, {
+      x: _newDirX,
+      y: _newDirY
+    }, Math.sqrt(Math.pow(_newDirX, 2) + Math.pow(_newDirY, 2)) / Bullet.bulletSpeed));
     player.ax -= 2 * bullet_start_dir.x / player_size; // Note: multiply with bullet damage later
 
     player.ay -= 2 * bullet_start_dir.y / player_size; // Note: multiply with bullet damage later
@@ -743,45 +782,45 @@ function Enemy(o_x, o_y) {
 
   var _a = 2 * Math.PI / nVertices;
 
-  var EnemyPositionData = [];
+  var EnemyData = [];
   var _maxR = 0;
 
   for (var i = 0; i < nVertices; i++) {
     var _r = min_r + ModifiedRandomAboveAvg() * (max_r - min_r);
 
     if (_r > _maxR) _maxR = _r;
-    EnemyPositionData.push({
+    EnemyData.push(_objectSpread({
       ox: o_x,
       oy: o_y,
       x: o_x + _r * cos(i * _a),
       y: o_y + _r * sin(i * _a)
-    });
+    }, whiteRGB));
   }
 
-  var newCenter = getCentroidOfPolygon(EnemyPositionData);
+  var newCenter = getCentroidOfPolygon(EnemyData);
 
-  for (var _i3 = 0; _i3 < EnemyPositionData.length; _i3++) {
-    EnemyPositionData[_i3].ox = newCenter.x;
-    EnemyPositionData[_i3].oy = newCenter.y;
+  var _health = ~~(getAreaOfPolygon(EnemyData) / (100 * (nVertices / 2)));
+
+  for (var _i3 = 0; _i3 < EnemyData.length; _i3++) {
+    EnemyData[_i3].ox = newCenter.x;
+    EnemyData[_i3].oy = newCenter.y;
+    EnemyData[_i3].health = _health;
   }
-
-  var _health = ~~(getAreaOfPolygon(EnemyPositionData) / 300);
 
   return {
-    data: EnemyPositionData,
+    data: EnemyData,
     dir: {
       x: _dir._x,
       y: _dir._y
     },
     maxR: _maxR,
-    health: _health,
     o_health: _health,
     state: 1
   };
 }
 
-function EnemyFromData(positon_data) {
-  var _dir = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {
+function EnemyFromData(positon_data, _health) {
+  var _dir = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {
     x: 2,
     y: 0
   };
@@ -797,11 +836,11 @@ function EnemyFromData(positon_data) {
   _enemy.right = a.xMax + _enemy.data[0].ox;
   _enemy.left = a.xMin + _enemy.data[0].ox;
   _enemy.maxR = Math.sqrt(Math.pow((a.xMax - a.xMin) / 2, 2) + Math.pow((a.yMax - a.yMin) / 2, 2));
+  _enemy.o_health = _health; // for(let i = 0; i < _enemy.data.length; ++i){
+  //   let h = _enemy.data[i].health;
+  //   _enemy.data[i].health = (h > _health ? _health : h);
+  // }
 
-  var _health = ~~(getAreaOfPolygon(positon_data) / 300);
-
-  _enemy.health = _health;
-  _enemy.o_health = _health;
   return _enemy;
 }
 
@@ -887,15 +926,28 @@ function resetPlayer() {
 
 
 function drawEnemy(_enemy) {
+  var l = _enemy.data.length;
   c.beginPath();
   c.moveTo(_enemy.data[0].x, _enemy.data[0].y);
 
-  for (var i = 1; i < _enemy.data.length; i++) {
+  for (var i = 1; i < l; i++) {
     c.lineTo(_enemy.data[i].x, _enemy.data[i].y);
   }
 
   c.closePath();
-  c.stroke(); // c.fill();
+  c.stroke();
+
+  for (var _i4 = 0; _i4 < l; _i4++) {
+    if (_enemy.data[_i4].g !== 255 && _enemy.data[_i4].b !== 255) {
+      c.beginPath();
+      c.strokeStyle = "rgb(255,".concat(_enemy.data[_i4].g, ",").concat(_enemy.data[_i4].b, ")");
+      c.moveTo(_enemy.data[_i4].x, _enemy.data[_i4].y);
+      c.lineTo(_enemy.data[(_i4 + 1) % l].x, _enemy.data[(_i4 + 1) % l].y);
+      c.stroke();
+    }
+  }
+
+  c.strokeStyle = "#ffffff"; // c.fill();
 }
 
 function updateEnemy(_enemy) {
@@ -927,13 +979,17 @@ function drawPlayer(_player) {
 
 function drawBullet(_bullet) {
   c.drawImage(_bullet.img, _bullet.x - _bullet.r, _bullet.y - _bullet.r);
-}
-
-function drawHealthBar(_enemy) {
-  var mid = (_enemy.left + _enemy.right) / 2;
-  c.strokeRect(mid - 50, _enemy.bottom + 10, 100, 10);
-  c.fillRect(mid - 50, _enemy.bottom + 10, _enemy.health / _enemy.o_health * 100, 10);
-} //#endregion
+} // function drawHealthBar(_enemy) {
+//   let mid = (_enemy.left + _enemy.right) / 2;
+//   c.strokeRect(mid - 50, _enemy.bottom + 10, 100, 10);
+//   c.fillRect(
+//     mid - 50,
+//     _enemy.bottom + 10,
+//     (_enemy.health / _enemy.o_health) * 100,
+//     10
+//   );
+// }
+//#endregion
 //#region Event Handling
 
 
@@ -1030,23 +1086,21 @@ function draw() {
   drawPlayer(player);
   c.fillText("Score(x".concat(scoremult, "):").concat(~~score), org_x + 10, org_y + 32);
 
-  for (var _i4 = 0; _i4 < popUps.length; _i4++) {
-    if (popUps[_i4][3] !== 0) {
-      c.fillText(popUps[_i4][0], popUps[_i4][1], popUps[_i4][2]);
-      popUps[_i4][3]--;
-      popUps[_i4][2] -= 7;
+  for (var _i5 = 0; _i5 < popUps.length; _i5++) {
+    if (popUps[_i5][3] !== 0) {
+      c.fillText(popUps[_i5][0], popUps[_i5][1], popUps[_i5][2]);
+      popUps[_i5][3]--;
+      popUps[_i5][2] -= 7;
     }
-  }
-
-  for (var _i5 in enemiesToShowHealth) {
-    if (enemiesToShowHealth[_i5] === 0 || !enemy[_i5].state) {
-      delete enemiesToShowHealth[_i5];
-      continue;
-    }
-
-    drawHealthBar(enemy[_i5]);
-    enemiesToShowHealth[_i5]--;
-  } //#endregion
+  } // for (let i in enemiesToShowHealth) {
+  //   if (enemiesToShowHealth[i] === 0 || !enemy[i].state) {
+  //     delete enemiesToShowHealth[i];
+  //     continue;
+  //   }
+  //   drawHealthBar(enemy[i]);
+  //   enemiesToShowHealth[i]--;
+  // }
+  //#endregion
   //#region Enemy Wrap Around
 
 
@@ -1130,8 +1184,8 @@ function draw() {
         for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
           var m = _step2.value;
           if (!enemy[m].state) continue;
-          if (!(b_x > enemy[m].left - 10 && b_x < enemy[m].right + 10 && b_y < enemy[m].bottom + 10 && b_y > enemy[m].top - 10)) continue;
-          enemiesToShowHealth[m] = 10;
+          if (!(b_x > enemy[m].left - 10 && b_x < enemy[m].right + 10 && b_y < enemy[m].bottom + 10 && b_y > enemy[m].top - 10)) continue; // enemiesToShowHealth[m] = 10;
+
           handleCollision_Bullet_Enemy(bullet[_i7], enemy[m]);
         } //#endregion
 
@@ -1151,27 +1205,37 @@ function draw() {
   //#region Player collision with enemies
 
 
-  for (var _m = 0, __l = enemy.length; _m !== __l; _m++) {
-    if (!enemy[_m].state) continue;
-    var player_x = player.x,
-        player_y = player.y;
+  var _iterator3 = _createForOfIteratorHelper(enemyInView),
+      _step3;
 
-    if (player_x > enemy[_m].left - 10 && player_x < enemy[_m].right + 10 && player_y < enemy[_m].bottom + 10 && player_y > enemy[_m].top - 10) {
-      for (var _j6 = 0, l = enemy[_m].data.length; _j6 !== l; _j6++) {
-        var x3 = enemy[_m].data[_j6].x,
-            y3 = enemy[_m].data[_j6].y,
-            x4 = enemy[_m].data[(_j6 + 1) % l].x,
-            y4 = enemy[_m].data[(_j6 + 1) % l].y;
+  try {
+    for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+      var _m = _step3.value;
+      if (!enemy[_m].state) continue;
+      var player_x = player.x,
+          player_y = player.y;
 
-        if (checkCollision(player_x, player_y, player.px + enemy[_m].dir.x, player.py + enemy[_m].dir.y, x3, y3, x4, y4)) {
-          resetPlayer(player);
-          break;
+      if (player_x > enemy[_m].left - 10 && player_x < enemy[_m].right + 10 && player_y < enemy[_m].bottom + 10 && player_y > enemy[_m].top - 10) {
+        for (var _j6 = 0, l = enemy[_m].data.length; _j6 !== l; _j6++) {
+          var x3 = enemy[_m].data[_j6].x,
+              y3 = enemy[_m].data[_j6].y,
+              x4 = enemy[_m].data[(_j6 + 1) % l].x,
+              y4 = enemy[_m].data[(_j6 + 1) % l].y;
+
+          if (checkCollision(player_x, player_y, player.px + enemy[_m].dir.x, player.py + enemy[_m].dir.y, x3, y3, x4, y4)) {
+            resetPlayer(player);
+            break;
+          }
         }
       }
-    }
-  } //#endregion
-  //#region Camera moves with player
+    } //#endregion
+    //#region Camera moves with player
 
+  } catch (err) {
+    _iterator3.e(err);
+  } finally {
+    _iterator3.f();
+  }
 
   if (player.py !== player.y || player.px !== player.x) {
     translate_x = (player.px - player.x) * 0.1;
@@ -1252,7 +1316,7 @@ var parent = module.bundle.parent;
 if ((!parent || !parent.isParcelRequire) && typeof WebSocket !== 'undefined') {
   var hostname = "" || location.hostname;
   var protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-  var ws = new WebSocket(protocol + '://' + hostname + ':' + "53961" + '/');
+  var ws = new WebSocket(protocol + '://' + hostname + ':' + "57634" + '/');
 
   ws.onmessage = function (event) {
     checkedAssets = {};
@@ -1428,5 +1492,5 @@ function hmrAcceptRun(bundle, id) {
     return true;
   }
 }
-},{}]},{},["../node_modules/parcel-bundler/src/builtins/hmr-runtime.js","main.js"], null)
-//# sourceMappingURL=/main.1f19ae8e.js.map
+},{}]},{},["../node_modules/parcel-bundler/src/builtins/hmr-runtime.js","game.js"], null)
+//# sourceMappingURL=/game.7bbe06d5.js.map
